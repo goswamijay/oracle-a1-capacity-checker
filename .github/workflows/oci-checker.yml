@@ -105,6 +105,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if [ -f "launch_state.json" ]; then
             echo "=================================================="
@@ -124,5 +125,7 @@ jobs:
             gh workflow disable "oci-checker.yml" || gh workflow disable "Oracle Cloud A1 Flex Capacity Checker & VM Creator" || true
             echo "Workflow has been disabled so it stops checking."
           else
-            echo "No instance created in this cycle. Will continue monitoring on next scheduled interval."
+            echo "No instance created in this cycle."
+            echo "Triggering next run immediately for 24x7 continuous checking..."
+            gh workflow run "oci-checker.yml" --ref main || echo "Notice: Scheduled cron will continue next."
           fi
