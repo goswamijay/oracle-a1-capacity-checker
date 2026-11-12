@@ -1,0 +1,122 @@
+name: Oracle Cloud A1 Flex Capacity Checker & VM Creator
+
+on:
+  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+  schedule:
+    # Run every 5 minutes (standard minimum GitHub Actions schedule interval)
+    - cron: '*/5 * * * *'
+
+# Ensure only one instance of the checker runs at any given time
+concurrency:
+  group: oci-capacity-checker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write # Required to automatically disable the workflow upon successful VM creation
+
+jobs:
+  check-and-create:
+    name: Check A1 Flex Capacity & Create VM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure Secure OCI Environment
+        env:
+          OCI_PRIVATE_KEY_SECRET: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_USER_SECRET: ${{ secrets.OCI_USER }}
+          OCI_FINGERPRINT_SECRET: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_SECRET: ${{ secrets.OCI_TENANCY }}
+          OCI_REGION_SECRET: ${{ secrets.OCI_REGION }}
+        run: |
+          mkdir -p ~/.oci
+          chmod 700 ~/.oci
+
+          # Safely write OCI private key with strict POSIX permissions
+          echo "$OCI_PRIVATE_KEY_SECRET" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+
+          # Generate ~/.oci/config for SDK compatibility
+          cat <<EOF > ~/.oci/config
+          [DEFAULT]
+          user=${OCI_USER_SECRET}
+          fingerprint=${OCI_FINGERPRINT_SECRET}
+          key_file=~/.oci/oci_api_key.pem
+          tenancy=${OCI_TENANCY_SECRET}
+          region=${OCI_REGION_SECRET}
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: Execute Capacity Check & Instance Creator
+        id: oci_runner
+        env:
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
+          OCI_USER: ${{ secrets.OCI_USER }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_REGION: ${{ secrets.OCI_REGION || 'ap-mumbai-1' }}
+          OCI_KEY_FILE: ~/.oci/oci_api_key.pem
+          OCI_COMPARTMENT: ${{ secrets.OCI_COMPARTMENT }}
+          OCI_AD: ${{ secrets.OCI_AD }}
+          OCI_SUBNET: ${{ secrets.OCI_SUBNET }}
+          OCI_BOOT_VOLUME: ${{ secrets.OCI_BOOT_VOLUME }}
+          INSTANCE_NAME: "kron_new"
+          INSTANCE_SHAPE: "VM.Standard.A1.Flex"
+          OCPUS: "2"
+          MEMORY_IN_GBS: "12"
+          ASSIGN_PUBLIC_IP: "true"
+          RETRY_INTERVAL_SECONDS: "60"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PYTHONPATH: "."
+        run: |
+          # Run bounded loop for up to 240 seconds (retrying every 60s within this GitHub action run)
+          python src/main.py --duration 240 --interval 60
+          RUN_EXIT_CODE=$?
+          echo "RUN_EXIT_CODE=$RUN_EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          # Exit code 0: Instance created or already exists
+          # Exit code 2: Max duration elapsed without capacity (expected retryable outcome)
+          # Exit code 1: Fatal config/auth error
+          if [ "$RUN_EXIT_CODE" -eq 1 ]; then
+            echo "::error::Fatal configuration or authentication error encountered."
+            exit 1
+          fi
+
+      - name: Check Creation State & Auto-Disable Schedule on Success
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f "launch_state.json" ]; then
+            echo "=================================================="
+            echo "🚀 INSTANCE CREATED OR ACTIVE! Disabling workflow schedule..."
+            echo "=================================================="
+            
+            # Print GitHub Job Summary
+            echo "### 🎉 Oracle Cloud VM Creation Successful!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat launch_state.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Automatically disabling this workflow schedule to save GitHub Action minutes." >> $GITHUB_STEP_SUMMARY
+
+            # Automatically disable this scheduled workflow using GitHub CLI
+            gh workflow disable "oci-checker.yml" || echo "Workflow auto-disable notice: You can also disable the schedule manually in GitHub Actions tab."
+          else
+            echo "No instance created in this cycle. Will continue monitoring on next scheduled interval."
+          fi

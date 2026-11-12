@@ -1,0 +1,18 @@
+[Unit]
+Description=Oracle Cloud A1 Flex Automatic Capacity Checker & VM Creator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/oracle-a1-capacity-checker
+EnvironmentFile=/opt/oracle-a1-capacity-checker/.env
+ExecStart=/usr/bin/python3 /opt/oracle-a1-capacity-checker/src/main.py --daemon --interval 60
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

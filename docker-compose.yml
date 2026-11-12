@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  oci-capacity-checker:
+    build: .
+    container_name: oci-a1-checker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ~/.oci:/root/.oci:ro
+      - ./launch_state.json:/app/launch_state.json
