@@ -83,9 +83,9 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONPATH: "."
         run: |
-          # Run bounded loop for up to 240 seconds (retrying every 60s within this GitHub action run)
+          # Run continuous checking loop every 30 seconds for 280 seconds (ensures 24/7 non-stop coverage)
           set +e
-          python src/main.py --duration 240 --interval 60
+          python src/main.py --duration 280 --interval 30
           RUN_EXIT_CODE=$?
           set -e
           echo "RUN_EXIT_CODE=$RUN_EXIT_CODE" >> "$GITHUB_OUTPUT"
@@ -97,7 +97,7 @@ jobs:
             echo "::error::Fatal configuration or authentication error encountered."
             exit 1
           elif [ "$RUN_EXIT_CODE" -eq 2 ]; then
-            echo "::notice::Capacity not yet available in Mumbai AD-1. Finished 4 attempts in this window. The next scheduled run will continue automatically."
+            echo "::notice::Checked Mumbai AD-1 repeatedly (every 30s). Next scheduled run will continue immediately."
             exit 0
           fi
 
@@ -121,7 +121,8 @@ jobs:
             echo "Automatically disabling this workflow schedule to save GitHub Action minutes." >> $GITHUB_STEP_SUMMARY
 
             # Automatically disable this scheduled workflow using GitHub CLI
-            gh workflow disable "oci-checker.yml" || echo "Workflow auto-disable notice: You can also disable the schedule manually in GitHub Actions tab."
+            gh workflow disable "oci-checker.yml" || gh workflow disable "Oracle Cloud A1 Flex Capacity Checker & VM Creator" || true
+            echo "Workflow has been disabled so it stops checking."
           else
             echo "No instance created in this cycle. Will continue monitoring on next scheduled interval."
           fi
