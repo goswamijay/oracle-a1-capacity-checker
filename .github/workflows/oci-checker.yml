@@ -84,8 +84,10 @@ jobs:
           PYTHONPATH: "."
         run: |
           # Run bounded loop for up to 240 seconds (retrying every 60s within this GitHub action run)
+          set +e
           python src/main.py --duration 240 --interval 60
           RUN_EXIT_CODE=$?
+          set -e
           echo "RUN_EXIT_CODE=$RUN_EXIT_CODE" >> "$GITHUB_OUTPUT"
 
           # Exit code 0: Instance created or already exists
@@ -94,6 +96,9 @@ jobs:
           if [ "$RUN_EXIT_CODE" -eq 1 ]; then
             echo "::error::Fatal configuration or authentication error encountered."
             exit 1
+          elif [ "$RUN_EXIT_CODE" -eq 2 ]; then
+            echo "::notice::Capacity not yet available in Mumbai AD-1. Finished 4 attempts in this window. The next scheduled run will continue automatically."
+            exit 0
           fi
 
       - name: Check Creation State & Auto-Disable Schedule on Success
