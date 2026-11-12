@@ -78,14 +78,14 @@ jobs:
           OCPUS: "2"
           MEMORY_IN_GBS: "12"
           ASSIGN_PUBLIC_IP: "true"
-          RETRY_INTERVAL_SECONDS: "60"
+          RETRY_INTERVAL_SECONDS: "90"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONPATH: "."
         run: |
-          # Run continuous checking loop every 30 seconds for 280 seconds (ensures 24/7 non-stop coverage)
+          # Run checking loop every 90 seconds for up to 270 seconds per scheduled window
           set +e
-          python src/main.py --duration 280 --interval 30
+          python src/main.py --duration 270 --interval 90
           RUN_EXIT_CODE=$?
           set -e
           echo "RUN_EXIT_CODE=$RUN_EXIT_CODE" >> "$GITHUB_OUTPUT"
@@ -97,7 +97,7 @@ jobs:
             echo "::error::Fatal configuration or authentication error encountered."
             exit 1
           elif [ "$RUN_EXIT_CODE" -eq 2 ]; then
-            echo "::notice::Checked Mumbai AD-1 repeatedly (every 30s). Next scheduled run will continue immediately."
+            echo "::notice::Checked Mumbai AD-1 every 90 seconds. Next scheduled run will continue automatically."
             exit 0
           fi
 
