@@ -37,11 +37,11 @@ jobs:
 
       - name: Configure Secure OCI Environment
         env:
-          OCI_PRIVATE_KEY_SECRET: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_PRIVATE_KEY_SECRET: ${{ secrets.OCI_PRIVATE_KEY || secrets.OCI_API_KEY }}
           OCI_USER_SECRET: ${{ secrets.OCI_USER }}
           OCI_FINGERPRINT_SECRET: ${{ secrets.OCI_FINGERPRINT }}
           OCI_TENANCY_SECRET: ${{ secrets.OCI_TENANCY }}
-          OCI_REGION_SECRET: ${{ secrets.OCI_REGION }}
+          OCI_REGION_SECRET: ${{ secrets.OCI_REGION || 'ap-mumbai-1' }}
         run: |
           mkdir -p ~/.oci
           chmod 700 ~/.oci
@@ -69,8 +69,8 @@ jobs:
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_REGION: ${{ secrets.OCI_REGION || 'ap-mumbai-1' }}
           OCI_KEY_FILE: ~/.oci/oci_api_key.pem
-          OCI_COMPARTMENT: ${{ secrets.OCI_COMPARTMENT }}
-          OCI_AD: ${{ secrets.OCI_AD }}
+          OCI_COMPARTMENT: ${{ secrets.OCI_COMPARTMENT || secrets.OCI_TENANCY }}
+          OCI_AD: ${{ secrets.OCI_AD || 'KDQc:AP-MUMBAI-1-AD-1' }}
           OCI_SUBNET: ${{ secrets.OCI_SUBNET }}
           OCI_BOOT_VOLUME: ${{ secrets.OCI_BOOT_VOLUME }}
           INSTANCE_NAME: "kron_new"
